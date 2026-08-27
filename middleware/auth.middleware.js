@@ -1,0 +1,52 @@
+import jwt from "jsonwebtoken";
+import User from "../models/user.model.js";
+import { JWT_SECRET } from "../config/env.js";
+
+const authorize=async(req,res,next)=>{
+    try{
+
+let token;
+if(req.headers.authorization && req.headers.authorization.startsWith("Bearer")){
+    token=req.headers.authorization.split(" ")[1]
+}
+
+if(!token){
+    return res.status(401).json({success:false,message:"Not authorized to access this route"})
+
+}
+
+const refresh=async(req,res,next)=>{
+const token=req.cookies.token
+if (!token) return res.status(401).json({ message: 'Not authenticated' });
+
+const decoded = jwt.verify(token, process.env.JWT_SECRET);
+req.userId = decoded.id;
+
+
+
+}
+
+const decoded=jwt.verify(token,JWT_SECRET)
+const user=await User.findById(decoded.userId)
+if(!user){
+    return res.status(401).json({success:false,message:"Not authorized to access this route"})
+}
+//if(user.role!=="admin"){
+//    return res.status(403).json({success:false,message:"You do not have permission to access this route"})
+//}
+req.user=user
+next()
+    }catch(error){
+
+        res.status(401).json({success:false,message:"Not authorized to access this route"})
+
+    }
+    }
+
+const refresh=async(req,res)=>{
+  const user = await User.findById(req.userId).select('-password');
+  res.json({ user });
+}
+
+
+    export default authorize
