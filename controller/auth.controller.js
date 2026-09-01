@@ -3,7 +3,7 @@ import jwt from "jsonwebtoken";
 import bcryptjs from "bcryptjs";
 import User from "../models/user.model.js";
 import { JWT_SECRET, JWT_REF_SECRET, JWT_EXPIRES_IN, JWT_REFRESH_EXPIRES_IN } from "../config/env.js";
-
+import { jwtDecode } from "jwt-decode";
 export const signup = async (req, res, next) => {
   const session = await mongoose.startSession();
   session.startTransaction();
@@ -137,5 +137,69 @@ export const refresh = async (req, res) => {
     });
   } catch (error) {
     return res.status(403).json({ message: "Invalid or expired refresh token" });
+  }
+};
+
+
+export const googlesignup = async (req, res, next) => {
+  try {
+    const { credential} = req.body;
+    const result = jwtDecode(credential);
+    const email = result.email;
+    const username = result.name;
+    const existingUser = await User.findOne({ email });
+    if (existingUser) {
+      const token = jwt.sign({ userId: existingUser._id }, JWT_SECRET, {
+        expiresIn: JWT_EXPIRES_IN,
+      });
+      const refreshtoken = jwt.sign({ userId: existingUser._id }, JWT_REF_SECRET, {
+        expiresIn: JWT_REFRESH_EXPIRES_IN,
+      });
+
+      existingUser.refreshTokens.push(refreshtoken);
+      await existingUser.save();
+      res.cookie("refreshtoken", refreshtoken, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
+        maxAge: 7 * 24 * 60 * 60 * 1000,
+      });
+
+      res.status(200).json({
+        success: true,
+        message: "Log in successfull",
+        data: {
+          token,
+          user:existingUser,
+        },
+      });
+    }else{
+   
+       const newUsers = await User.create(
+         [{ username, email}],
+      
+       );
+       const token = jwt.sign({ userId: newUsers[0]._id }, JWT_SECRET, {
+         expiresIn: JWT_EXPIRES_IN,
+       });
+       const refreshtoken = jwt.sign({ userId: newUsers[0]._id }, JWT_REF_SECRET, {
+        expiresIn: JWT_REFRESH_EXPIRES_IN,
+      });
+
+      newUsers[0].refreshTokens.push(refreshtoken);
+      await newUsers[0].save();
+       res.status(201).json({
+         success: true,
+         message: "user created successfully",
+         data: {
+           token,
+           user: newUsers[0],
+         },
+       });
+    }
+
+
+  } catch (error) {
+    next(error);
   }
 };
